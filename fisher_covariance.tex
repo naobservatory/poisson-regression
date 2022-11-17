@@ -1,0 +1,140 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\title{Asymptotic covariance of Poisson regression coefficients}
+\author{Daniel P. Rice}
+\date{November 2022}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+    The power of Poisson regression detect exponentially growing abundances from count data depends on the variance of the estimated growth rate parameter. Here, I calculate that variance in the limit that you have a lot of data and sample many time points. I find an asymptotic expression for the variance that shows the dependence on the sampling time, the number of samples, the sampling intensity, and the growth parameters.
+\end{abstract}
+
+Let $a(t)$ be the abundance of an exponentially-growing pathogen over time:
+\begin{align}
+    a(t) = \exp(\beta_0 + \beta_1 t)
+\end{align}
+for $t \in \left[ 0, T\right]$.
+Suppose we take $n$ measurements at times $\left\{t_i\right\}$ with exposures $\left\{\lambda_i\right\}$ for $i = 1, \ldots, n-1$.
+The exposures represent a conversion factor between the abundance and the expected number of counts and lump together the sampling intensity and properties of the sequencing protocol such as taxonomic bias.
+We model the vector of observed counts $\vec{k}$ as independent Poisson random variables:
+\begin{align}
+    k_i \sim \text{Poisson}(\lambda_i a(t_i)).
+\end{align}
+We use Poisson regression to estimate the parameters $(\beta_0, \beta_1)$.
+This is equivalent to maximizing the log-likelihood:
+\begin{align}
+    l(\beta_0, \beta_1; \vec{k}, \vec{\lambda})
+    & = \log \prod_{i=0}^{n-1} \frac{{(\lambda_i a(t_i))}^{k_i}}{k!} \exp(\lambda_i a(t_i))\\
+    & = \sum_{i=0}^{n-1} \left[k_i(\beta_0 + \beta_1 t_i) - \lambda_i e^{\beta_0 + \beta_1 t_i} \right] + \text{const.}
+\end{align}
+
+In the limit where we have a lot of data (query what exactly this means in this context), the covariance matrix of the maximum likelihood parameter estimates $(\hat{\beta_0}, \hat{\beta_1})$ converges to the inverse of the Fisher information matrix,
+\begin{equation}
+    \mathcal{I}_{i, j} = - \mathbb{E} \left[ \frac{\partial^2 l}{\partial \beta_i \partial \beta_j} \middle| \beta_0, \beta_1 \right].
+\end{equation}
+Differentiating the log likelihood twice gives us:
+\begin{align}
+    \frac{\partial^2 l}{\partial \beta_0^2}
+    &= - \sum_{i=0}^{n-1} \lambda_i e^{\beta_0 + \beta_1 t} \\
+    \frac{\partial^2 l}{\partial \beta_0 \partial \beta_1}
+    &= - \sum_{i=0}^{n-1} \lambda_i t_i e^{\beta_0 + \beta_1 t} \\
+    \frac{\partial^2 l}{\partial \beta_1^2}
+    &= - \sum_{i=0}^{n-1} \lambda_i t_i^2 e^{\beta_0 + \beta_1 t}.
+\end{align}
+If we take evenly spaced samples with equal exposure so that $t_i = T(i/n-1)$ and $\lambda_i = \lambda / n$, with total exposure $\lambda$, we have
+\begin{equation}
+    \mathcal{I} = \lambda e^{\beta_0}
+    \begin{pmatrix}
+        S_0 & T S_1 \\
+        T S_1 & T^2 S_2
+    \end{pmatrix}
+\end{equation}
+where
+\begin{align}
+    S_j = n^{-1} \sum_{i=0}^{n-1} {\left(\frac{i}{n-1}\right)}^j \exp\left(\beta_1 T \frac{i}{n-1}\right)
+\end{align}
+
+Because $\mathcal{I}$ is a $2 \times 2$ matrix, we can invert it to get the asymptotic covariance matrix:
+\begin{equation}
+    {\mathcal{I}}^{-1} = \lambda^{-1} e^{-\beta_0} T^{-2} \frac{1}{S_0 S_2 - S_1^2}
+    \begin{pmatrix}
+        T^2 S_2 & -T S_1 \\
+        -T S_1 & S_0
+    \end{pmatrix}
+\end{equation}
+For exponential growth detection, we're most interested in
+\begin{equation}
+    \textrm{Var}(\hat{\beta_1}) = \lambda^{-1} e^{-\beta_0} T^{-2} \frac{S_0}{S_0 S_2 - S_1^2}.
+    \label{eq:var}
+\end{equation}
+
+We can already learn some important things from Eq.~\ref{eq:var}:
+\begin{enumerate}
+    \item The variance of $\hat{\beta_1}$ is inversely proportional to the total sampling effort, $\lambda$, and to the initial abundance, $e^{\beta_0}$.
+    \item The standard error is inversely proportional to the total time spanned by the sampling, $T$.
+    \item The variance depends on the true growth rate through the dimensionless parameter $\beta_1 T$, which represents the log-fold increase in abundance over $T$.
+\end{enumerate}
+
+Next, we want to clarify the dependence of $\textrm{Var}(\hat{\beta_1})$ on the number of sampled timepoints, $n$, and on the log fold-increase $\beta_1 T$, which are opaque in Eq.~\ref{eq:var}.
+First, we will get the exact equation for the situation with no growth ($\beta_1 = 0$).
+Then, we'll look at the general case and study the large $n$ behavior with an asymptotic series in $n^{-1}$.
+
+When $\beta_1 = 0$, the sums become simple:
+\begin{align}
+    S_0 &= 1 \\
+    S_1 &= \frac{n-1}{2} \\
+    S_2 &= \frac{(n-1)(2n-1)}{6}
+\end{align}
+so that we have
+\begin{align}
+    \textrm{Var}(\hat{\beta_1}) &= \lambda^{-1} e^{-\beta_0} \frac{12}{T^2} \left(\frac{n-1}{n+1}\right) \\
+                                &\sim \lambda^{-1} e^{-\beta_0} \frac{12}{T^2} \left(1 - \frac{2}{n} + \frac{2}{n^2} + \cdots\right)
+\end{align}
+as $n \to \infty$.
+
+Note that the variance converges to a constant as the number of samples increases (holding the total exposure constant).
+This is intuitive because we expect diminishing returns to ever-finer temporal resolution.
+Also note that the error of the first order approximation in $n^{-1}$ is already only 2\% once you have 10 sampled times, so for the full case, we won't bother with higher-order approximations.
+
+% \newcommand{\expnm}[1]{\exp\left(\beta_1 T \frac{#1}{n-1}\right)}
+\newcommand{\expnm}[1]{e^{\beta_1 T \frac{#1}{n-1}}}
+
+For the case of arbitrary $\beta_1$, we can still compute the sums $S_j$ in closed form, but they become significantly more complicated:
+\begin{align}
+    S_0 &= \frac{\expnm{n} - 1}{n\left(\expnm{1} - 1\right)} \\
+    S_1 &= \frac{(n-1) \expnm{n+1} - n\expnm{n} + \expnm{1}}{n(n-1){\left(\expnm{1}-1\right)}^2} \\
+    S_2 &= \frac{{(n-1)}^2\expnm{n+2} + (-2n^2 + 2n + 1) \expnm{n+1} + n^2 \expnm{n} - \expnm{2} - \expnm{1}}{n{(n-1)}^2{\left(\expnm{1} - 1\right)}^3}
+\end{align}
+
+To get an asymptotic series for the variance, we can either do pages and pages of tedious algebra, or we can turn to Mathematica.
+Here's the answer we get from the later:
+\newcommand{\bt}{\beta_1 T}
+\newcommand{\ebt}[1][]{e^{#1 \beta_1 T}}
+\begin{equation}
+\begin{split}
+    \textrm{Var}(\hat{\beta_1}) = \lambda^{-1} e^{-\beta_0} T^{-2}
+    \biggl[
+    &\frac
+        {{(\bt)}^3 \left( \ebt - 1 \right)}
+        {\ebt[2] - ({(\bt)}^2 + 2)\ebt + 1} \\
+    &+ n^{-1}
+    \frac
+    {{(\bt)}^3 \left(\left(\bt - 2\right) \ebt + \bt + 2 \right)\left(\ebt[2] + ({(\bt)}^2 - 2)\ebt + 1\right)}
+        {2{\left(\ebt[2] -({(\bt)}^2 + 2)\ebt + 1\right)}^2}\\
+    &+ \mathcal{O}(n^{-2})
+    \biggr]
+\end{split}
+\end{equation}
+
+TODO:
+\begin{enumerate}
+    \item Plots
+    \item Include Mathematica code
+    \item Interpretation of final equation
+    \item P-values under Gaussian approximation to null distribution
+\end{enumerate}
+
+\end{document}
