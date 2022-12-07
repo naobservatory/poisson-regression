@@ -1,0 +1,307 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\newcommand{ \lambtot }{\lambda_{\text{tot}}}
+\DeclareMathOperator{\cov}{cov}
+
+\title{Poisson regression theory for exponential growth detection}
+\author{Daniel P. Rice}
+\date{December 2022}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+    Objectives:
+    \begin{enumerate}
+        \item Sufficient generality so that we can see general properties and extensions
+        \item Sufficient concreteness that we can calculate things
+        \item Build intuition for scaling
+        \item Compare approaches
+        \item Simple model as baseline for complications
+    \end{enumerate}
+\end{abstract}
+
+\section{Model}
+
+We are interested in estimating the abundance over time, $a(t)$, of a virus circulating in the population.
+Our observations consist of $n$ metagenomic samples from the environment (e.g., wastewater) taken at a discrete set of times $\left\{t_0, \ldots, t_{n-1}\right\}$.
+We process the metagenomic samples to identify all k-mers of a given length and count their occurrence in each sample.
+Here we focus on the counts, $X = \left\{X_0, \ldots, X_{n-1}\right\}$, of a single k-mer derived from our virus of interest.
+At each sampling time $t_i$, we have a known sampling effort $\lambda_i$.
+The $\left\{\lambda_i\right\}$ represent a conversion factor from the abundance of the virus to the count of the focal k-mer so that $\mathbb{E}\left[X_i\right] = \lambda_i a(t_i)$,
+accounting for the combined effects of sequencing depth, extraction and sequencing efficiency, and our bioinformatics pipeline.
+(Caveat: in practice the conversion factor is not fully known and may fluctuate due to compositional effects in the sample. However, it is reasonable to think of it as proportial to the sequencing depth.)
+
+In the following we will model the counts, conditional on $a(t)$ and $\lambda$, as independent Poisson random variables.
+This assumes that each copy of the virus in the population has a small probability of contributing a read to the metagenomic pool and that they do so independently of one another.
+Violations of these assumptions will result in overdispersion of the counts relative to the Poisson distribution.
+Exploring the consequences of overdispersion for our methods will be the subject of another document.
+
+Assuming that $X_i \sim \text{Poisson}\left(\lambda_i a(t_i)\right)$ and the $\left\{X_i\right\}$ are mutually independent, the log-likelihood of our model is:
+\begin{equation}
+    l(a; x, \lambda) = \sum_i \left\{\log(a(t_i)) x_i - \lambda_i a(t_i) \right\} + \text{const.}
+    \label{eq:likelihood}
+\end{equation}
+where the constant term depends on $x$ and $\lambda$ but not on $a$.
+Eq.~\ref{eq:likelihood} is an exponential family with $n$ natural parameters $\left\{\log(a(t_i))\right\}$ and sufficient statistics $\left\{x_i\right\}$.
+Fitting this model would amount to estimating the abundance at each time using only the count data at that same time.
+There are two problems with this.
+First, scientifically, we are not interested only in the abundances at the observed times.
+Instead, we'd like to \emph{characterize} the function $a(t)$, answering questions like, ``Is the virus spreading?'' or, ``Does it fluctuate cyclically?''
+Alternately, we might want to \emph{predict} the abundance in the future.
+Second, the model overfits to the Poisson counting noise at each time.
+As long as our sampling times aren't too widely spaced, we expect the abundance at nearby timepoints to be similar.
+Accordingly, we'd like to borrow information from multiple timepoints to inform our estimate of $a(t)$.
+This borrowing is the essence of regression.
+
+In order to link our estimates of the abundance at different times, we expand $\log(a(t))$ in terms of a set of basis functions $\left\{b_r(t)\right\}$:
+\begin{equation}
+    \log(a(t)) = \sum_r \beta_r b_r(t).
+    \label{eq:basis}
+\end{equation}
+For standard Poisson regression, $b_0(t) = 1$ and $b_1(t) = t$.
+Here, we will work with a general basis as much as possible.
+This will show us which properties depend on linearity of $\log(a(t))$ and which do not.
+It will also allow us to accommodate models with periodic fluctuations.
+Finally, it will show us how to select the basis with the best statistical properties among a set of equivalent parameterizations.
+
+Substituting Eq.~\ref{eq:basis} into Eq.~\ref{eq:likelihood}, our likelihood equation becomes
+\begin{equation}
+    l(\beta; x, \lambda) = \sum_r \beta_r \sum_i b_r(t_i) x_i - \sum_i \lambda_i e^{\sum_r \beta_r b_r(t_i)} + \text{const.}
+\end{equation}
+We can now see why we chose to expand $\log(a)$ rather than $a$:
+with this choice, our coefficients, $\beta$, are the natural parameters of an exponential family with sufficient statistics
+\begin{equation}
+    T_r(X) = \sum_i b_r(t_i) X_i
+    \label{eq:suff}
+\end{equation}
+and log-partition function
+\begin{equation}
+    A(\beta) = \sum_i \lambda_i e^{\sum_r \beta_r b_r(t_i)}.
+\end{equation}
+(It also lets us avoid the complications of restricting the abundances to be positive.)
+Note that the sufficient statistics (Eq.~\ref{eq:suff}) are linear combinations of the $X_i$, namely their projections onto the basis functions $b_r(t)$.
+
+In the following sections, we will derive statistical procedures for inferring the coefficients $\beta$, first in a maximum likelihood framework, then in a Bayesian one.
+We will see how to select basis functions and how the results depend on the sampling times and sequencing effort.
+Finally, we will analyze an edge case that maximum likelihood does not handle well and show how Bayesian inference regularizes our estimates.
+
+\section{Maximum likelihood inference}
+
+\subsection{Maximum likelihood parameter estimates}
+
+For an exponential family with natural parameters $\nu$, sufficient statistics $T(X)$, and log-partition function $A(\nu)$, the log likelihood is
+\begin{equation}
+    l(\nu; x) = \nu \cdot T(x) - A(\nu).
+\end{equation}
+Setting $\nabla l = 0$, we find the maximum likelihood parameters $\hat{\nu}$ satisfy the equation
+\begin{align}
+    T(x) &= \nabla A(\hat{\nu}) \\
+         &= \mathbb{E}\left[T(X)|\hat{\nu}\right].
+\end{align}
+That is, $\hat{\nu}$ are the parameters for which the expected values of the sufficient statistics equal their observed values.
+(The simplicity of this equation is one of the reasons to work with natural parameters.)
+
+Applying this result to our Poisson regression model, we have
+\begin{align}
+    \frac{\partial A}{\partial \beta_r}(\hat{\beta}) &= T_r(x) \\
+    \sum_i \lambda_i b_r(t_i) e^{\sum_{r'} \hat{\beta}_{r'} b_{r'}(t_i)}
+                                                     &= \sum_i b_r(t_i) x_i.
+    \label{eq:ml}
+\end{align}
+Eq.~\ref{eq:ml} is an implicit equation for $\hat{\beta}$, so we typically can't solve it in closed form.
+Instead, we'll use Newton's method, or equivalently iterated reweighted least-squares (IRLS), to find $\hat{\beta}$ as a function of $x$.
+
+Typically, we will want to compare our full model to a null model in which the abundance is constant over time.
+In this model $b_0(t) = 1$, $\beta_r = 0$ for $r > 0$, and our task is to find $\hat{\beta}_0$.
+\begin{align}
+    \sum_i \lambda_i e^{\hat{\beta}_0} &= \sum_i x_i \\
+    e^{\hat{\beta}_0} &= \frac{\sum_i x_i}{\lambtot},
+\end{align}
+where $\lambtot = \sum_i \lambda_i$ is the total sequencing effort.
+This is reasonable because our null model for the abundance is $a(t) = e^{\hat{\beta}_0}$.
+
+\subsection{Quantifying uncertainty: Fisher information}
+% Definition of I
+The maximum likelihood estimator $\hat{\beta}$ represents a point estimate of our parameters.
+We would like to complement this with a measure of the uncertainty of this estimate.
+A common measure in likelihood theory is the Fisher information matrix, defined as
+\begin{equation}
+    \mathcal{I}(\theta) = - \mathbb{E}\left[H_{l}(\theta; X) \middle| \theta \right],
+\end{equation}
+where $H_l$ is the Hessian matrix of the log likelihood function and $\theta$ are parameters.
+The Fisher information represents the curvature of the log likelihood around the parameter estimate $\theta$.
+Large Fisher information at the maximum likelihood estimate means that the data give a lot of information about the parameters and the estimate is sharp.
+Asymptotically, $\mathcal{I}^{-1}$ is the covariance matrix of the maximum likelihood estimator.
+
+For an exponential family with natural parameters $\nu$, the Hessian is independent of the data and we have:
+\begin{align}
+    \mathcal{I}_{r,s}(\nu) &= \frac{\partial^2}{\partial \nu_r \partial \nu_s} A(\nu)\\
+                           &= \cov\left(T_r(X), T_s(X)\right).
+\end{align}
+In our Poisson regression model, this gives
+\begin{align}
+    \mathcal{I}_{r,s}(\beta) &= \sum_i \lambda_i b_r(t_i) b_s(t_i) e^{\sum_{r'} \beta_{r'} b_{r'}(t_i)}.
+\end{align}
+Under the null model, this reduces to
+\begin{align}
+    \mathcal{I}_{r,s}(\beta_0) &= e^{\beta_0} \sum_i \lambda_i b_r(t_i) b_s(t_i) \\
+                               &= e^{\beta_0} \lambtot \left< b_r, b_s \right>_\lambda. \label{eq:inner_prod}
+\end{align}
+Eq.~\ref{eq:inner_prod} represents the sum in the previous line as an inner product of the basis functions $b_r$ and $b_s$ with respect to the normalized weights $\lambda / \lambtot$.
+Note that the Fisher information increases proportionally to the expected total count.
+
+\subsection{Choosing basis functions}
+
+Eq.~\ref{eq:inner_prod} suggests that we should choose our basis functions so that they are orthogonal with respect to the $\lambda$ weights:
+\begin{equation}
+    \mathcal{I}_{r,s}(\beta_0) = e^{\beta_0} \lambtot \| b_r \|_{\lambda}^2 \delta_{r,s}
+    \label{eq:i_ortho}
+\end{equation}
+Such an orthogonal basis will produce a diagonal Fisher information matrix under the null, which will simplify our analytical methods and make our numerical methods better conditioned.
+
+For exponential growth detection, we are interested in a polynomial basis truncated at first order.
+That is,
+\begin{align}
+    b_0(t) &= 1 \\
+    b_1(t) &= t - c
+\end{align}
+where $c$ is a constant to be determined.
+(We also have a coefficient multiplying $t$, but it is convenient to set it to be 1 so that $\beta_1$ is the growth rate).
+We choose $c$ to satisfy the orthogonality condition:
+\begin{align}
+    \left<b_0, b_1\right>_\lambda &= 0 \\
+    \sum_i \frac{\lambda_i}{\lambtot} (t_i - c) &= 0 \\
+    c &= \sum_i \frac{\lambda_i}{\lambtot} t_i.
+\end{align}
+Recognizing that the right-hand side of the last line is the average sampling time, weighted by the sampling intensity, we label it $\bar{t}$, so that
+\begin{align}
+    b_1(t) = t - \bar{t}.
+\end{align}
+
+With this choice of basis, all that remains is to compute the norms of the basis functions
+\begin{align}
+    \|b_0\| &= 1, \\
+    \|b_1\| &= \sum_i \frac{\lambda_i}{\lambtot} {(t_i - \bar{t})}^2 = \sigma_t^2.
+\end{align}
+Now we can substitute into Eq.~\ref{eq:i_ortho} to find the Fisher information under the null:
+\begin{align}
+    \mathcal{I}(\beta_0) = e^{\beta_0} \lambtot
+    \begin{pmatrix}
+        1 & 0 \\
+        0 & \sigma_t^2
+    \end{pmatrix}.
+\end{align}
+This confirms the intuition that our ability to estimate that non-growing virus are not growing increases with sampling depth and the dispersion of our samples in time.
+
+\subsection{Fisher information under the alternative hypothesis}
+
+\subsection{A problematic edge case: the first observation}
+
+\subsection{Null hypothesis testing}
+
+% Problems with multiple hypothesis testing
+
+\section{Baysian inference}
+
+\subsection{The conjugate prior and update rule}
+
+\subsection{Selection and interpretation of hyperparameters}
+
+\subsection{Point estimates and uncertainty}
+
+\subsection{Regularization of the first-observation problem}
+
+\subsection{Multiple hypothesis testing}
+
+Let $a(t)$ be the abundance of an exponentially-growing pathogen over time:
+\begin{align}
+    a(t) = \exp(\beta_0 + \beta_1 t)
+\end{align}
+for $t \in \left[ 0, T\right]$.
+Suppose we take $n$ measurements at times $\left\{t_i\right\}$ with exposures $\left\{\lambda_i\right\}$ for $i = 1, \ldots, n-1$.
+The exposures represent a conversion factor between the abundance and the expected number of counts and lump together the sampling intensity and properties of the sequencing protocol such as taxonomic bias.
+We model the vector of observed counts $\vec{k}$ as independent Poisson random variables:
+\begin{align}
+    k_i \sim \text{Poisson}(\lambda_i a(t_i)).
+\end{align}
+We use Poisson regression to estimate the parameters $(\beta_0, \beta_1)$.
+This is equivalent to maximizing the log-likelihood:
+\begin{align}
+    l(\beta_0, \beta_1; \vec{k}, \vec{\lambda})
+    & = \log \prod_{i=0}^{n-1} \frac{{(\lambda_i a(t_i))}^{k_i}}{k!} \exp(\lambda_i a(t_i))\\
+    & = \sum_{i=0}^{n-1} \left[k_i(\beta_0 + \beta_1 t_i) - \lambda_i e^{\beta_0 + \beta_1 t_i} \right] + \text{const.}
+\end{align}
+
+In the limit where we have a lot of data (query what exactly this means in this context), the covariance matrix of the maximum likelihood parameter estimates $(\hat{\beta_0}, \hat{\beta_1})$ converges to the inverse of the Fisher information matrix,
+\begin{equation}
+    \mathcal{I}_{i, j} = - \mathbb{E} \left[ \frac{\partial^2 l}{\partial \beta_i \partial \beta_j} \middle| \beta_0, \beta_1 \right].
+\end{equation}
+Differentiating the log likelihood twice gives us:
+\begin{align}
+    \frac{\partial^2 l}{\partial \beta_0^2}
+    &= - \sum_{i=0}^{n-1} \lambda_i e^{\beta_0 + \beta_1 t} \\
+    \frac{\partial^2 l}{\partial \beta_0 \partial \beta_1}
+    &= - \sum_{i=0}^{n-1} \lambda_i t_i e^{\beta_0 + \beta_1 t} \\
+    \frac{\partial^2 l}{\partial \beta_1^2}
+    &= - \sum_{i=0}^{n-1} \lambda_i t_i^2 e^{\beta_0 + \beta_1 t}.
+\end{align}
+If we take evenly spaced samples with equal exposure so that $t_i = T(i/n-1)$ and $\lambda_i = \lambda / n$, with total exposure $\lambda$, we have
+\begin{equation}
+    \mathcal{I} = \lambda e^{\beta_0}
+    \begin{pmatrix}
+        S_0 & T S_1 \\
+        T S_1 & T^2 S_2
+    \end{pmatrix}
+\end{equation}
+where
+\begin{align}
+    S_j = n^{-1} \sum_{i=0}^{n-1} {\left(\frac{i}{n-1}\right)}^j \exp\left(\beta_1 T \frac{i}{n-1}\right)
+\end{align}
+
+Because $\mathcal{I}$ is a $2 \times 2$ matrix, we can invert it to get the asymptotic covariance matrix:
+\begin{equation}
+    {\mathcal{I}}^{-1} = \lambda^{-1} e^{-\beta_0} T^{-2} \frac{1}{S_0 S_2 - S_1^2}
+    \begin{pmatrix}
+        T^2 S_2 & -T S_1 \\
+        -T S_1 & S_0
+    \end{pmatrix}
+\end{equation}
+For exponential growth detection, we're most interested in
+\begin{equation}
+    \textrm{Var}(\hat{\beta_1}) = \lambda^{-1} e^{-\beta_0} T^{-2} \frac{S_0}{S_0 S_2 - S_1^2}.
+    \label{eq:var}
+\end{equation}
+
+We can already learn some important things from Eq.~\ref{eq:var}:
+\begin{enumerate}
+    \item The variance of $\hat{\beta_1}$ is inversely proportional to the total sampling effort, $\lambda$, and to the initial abundance, $e^{\beta_0}$.
+    \item The standard error is inversely proportional to the total time spanned by the sampling, $T$.
+    \item The variance depends on the true growth rate through the dimensionless parameter $\beta_1 T$, which represents the log-fold increase in abundance over $T$.
+\end{enumerate}
+
+Next, we want to clarify the dependence of $\textrm{Var}(\hat{\beta_1})$ on the number of sampled timepoints, $n$, and on the log fold-increase $\beta_1 T$, which are opaque in Eq.~\ref{eq:var}.
+First, we will get the exact equation for the situation with no growth ($\beta_1 = 0$).
+Then, we'll look at the general case and study the large $n$ behavior with an asymptotic series in $n^{-1}$.
+
+When $\beta_1 = 0$, the sums become simple:
+\begin{align}
+    S_0 &= 1 \\
+    S_1 &= \frac{n-1}{2} \\
+    S_2 &= \frac{(n-1)(2n-1)}{6}
+\end{align}
+so that we have
+\begin{align}
+    \textrm{Var}(\hat{\beta_1}) &= \lambda^{-1} e^{-\beta_0} \frac{12}{T^2} \left(\frac{n-1}{n+1}\right) \\
+                                &\sim \lambda^{-1} e^{-\beta_0} \frac{12}{T^2} \left(1 - \frac{2}{n} + \frac{2}{n^2} + \cdots\right)
+\end{align}
+as $n \to \infty$.
+
+Note that the variance converges to a constant as the number of samples increases (holding the total exposure constant).
+This is intuitive because we expect diminishing returns to ever-finer temporal resolution.
+Also note that the error of the first order approximation in $n^{-1}$ is already only 2\% once you have 10 sampled times, so for the full case, we won't bother with higher-order approximations.
+
+\end{document}
