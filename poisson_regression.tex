@@ -145,6 +145,7 @@ For an exponential family with natural parameters $\nu$, the Hessian is independ
 In our Poisson regression model, this gives
 \begin{align}
     \mathcal{I}_{r,s}(\beta) &= \sum_i \lambda_i b_r(t_i) b_s(t_i) e^{\sum_{r'} \beta_{r'} b_{r'}(t_i)}.
+    \label{eq:fisher_info}
 \end{align}
 Under the null model, this reduces to
 \begin{align}
@@ -182,12 +183,32 @@ Recognizing that the right-hand side of the last line is the average sampling ti
     b_1(t) = t - \bar{t}.
 \end{align}
 
-With this choice of basis, all that remains is to compute the norms of the basis functions
+With this choice of basis, our sufficient statistics and log-partition function are:
+\begin{align}
+    T_0(X) &= \sum_i X_i \label{eq:t0} \\
+    T_1(X) &= \sum_i (t_i - \bar{t}) X_i \label{eq:t1} \\
+    A(\beta) &= \sum_i \lambda_i e^{\beta_0 + \beta_1 (t - \bar{t})}.
+\end{align}
+Eqs.~\ref{eq:t0}--\ref{eq:t1} show that our sufficient statistics are the total observed counts, and the sum of observed counts weighted by the time they were observed.
+
+Our ML equations (Eq.~\ref{eq:ml}) become:
+\begin{align}
+    \sum_i \lambda_i e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} &= \sum_i x_i, \label{eq:ml0} \\
+    \sum_i \lambda_i (t_i - \bar{t}) e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} &= \sum_i (t_i - \bar{t}) x_i. \label{eq:ml1}
+\end{align}
+Assuming that we observe at least one count so that $T_0(x) > 0$, we can divide Eq.~\ref{eq:ml1} by Eq.~\ref{eq:ml0} to eliminate $\hat{\beta}_0$ and get an implicit equation for $\hat{\beta}_1$:
+\begin{align}
+    \frac{\sum_i \lambda_i (t_i - \bar{t}) e^{\hat{\beta}_1 (t_i - \bar{t})}}{\sum_i \lambda_i e^{\hat{\beta}_1 (t_i - \bar{t})}}
+    &= \frac{T_1(x)}{T_0(x)}.
+\end{align}
+That is, we can compute the maximum likelihood estimator of the growth rate from the time-weighted sum of counts $T_1$, normalized by the total count $T_0$.
+
+To find the Fisher information under the null, all that remains is to find the norms of the basis functions
 \begin{align}
     \|b_0\| &= 1, \\
-    \|b_1\| &= \sum_i \frac{\lambda_i}{\lambtot} {(t_i - \bar{t})}^2 = \sigma_t^2.
+    \|b_1\| &= \sum_i \frac{\lambda_i}{\lambtot} {(t_i - \bar{t})}^2 = \sigma_t^2,
 \end{align}
-Now we can substitute into Eq.~\ref{eq:i_ortho} to find the Fisher information under the null:
+which  we can substitute into Eq.~\ref{eq:i_ortho} to get:
 \begin{align}
     \mathcal{I}(\beta_0) = e^{\beta_0} \lambtot
     \begin{pmatrix}
@@ -198,6 +219,32 @@ Now we can substitute into Eq.~\ref{eq:i_ortho} to find the Fisher information u
 This confirms the intuition that our ability to estimate that non-growing virus are not growing increases with sampling depth and the dispersion of our samples in time.
 
 \subsection{Fisher information under the alternative hypothesis}
+
+So far we have only calculated the Fisher information under the null hypothesis $\beta_r = 0$ for $r > 0$.
+This is a useful baseline, but if we want a better measure of our uncertainty in our estimates, we also need the Fisher information under the alternative hypothesis.
+In our chosen orthogonal basis, Eq.~\ref{eq:fisher_info} becomes
+\begin{align}
+    \mathcal{I}_{0,0} &= \sum_i \lambda_i e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} \label{eq:i00} \\
+    \mathcal{I}_{0,1} = \mathcal{I}_{1,0} &= \sum_i \lambda_i (t_i - \bar{t}) e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} \label{eq:i01} \\
+    \mathcal{I}_{1,1} &= \sum_i \lambda_i {(t_i - \bar{t})}^2 e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} \label{eq:i11}
+\end{align}
+Note that the right-hand side of Eqs.~\ref{eq:i00} and Eq.~\ref{eq:i01} are $T_0(x)$ and $T_1(x)$ respectively under the maximum likelihood equations (\ref{eq:ml0}--\ref{eq:ml1}). (This is because $\frac{\partial}{\partial \beta_0}A = A$.)
+
+Eq.~\ref{eq:i11} does not have a simple relationship to the sufficient statistics for general $\lambda$.
+However, we can gain some insight by considering the ratio $\mathcal{I}_{1,1} / T_0(x)$ in the limits of small and large $\hat{\beta}_0$.
+
+\subsubsection{Uniform-sampling approximation}
+
+There's not much we can do with Eq.~\ref{eq:i11} for arbitrary $\lambda$ and sampling times, so to make progress we'll assume evenly spaced samples with equal intensity on the interval $[0, T]$: $t_i = T i / (n - 1)$, and $\lambda_i = \lambtot / n$.
+We'll further assume that we have dense sampling so that $n \ll 1$.
+To simplify the expressions we'll neglect terms of order $n^{-1}$ and higher.
+[Note: we can compute more terms in the asympotic series in $n^{-1}$, to capture the dependence on $n$, but I don't think it's worth it.]
+With these assumptions, we can make the substitutions:
+\begin{align}
+    \sum_{i=0}^{n-1} \lambda_i & \to \int_0^T dt \frac{\lambtot}{T} \\
+    t_i & \to t \\
+    \bar{t} & \to T / 2 \\.
+\end{align}
 
 \subsection{A problematic edge case: the first observation}
 
