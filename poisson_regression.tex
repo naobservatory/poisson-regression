@@ -24,12 +24,14 @@
     \end{enumerate}
 \end{abstract}
 
+\tableofcontents
+
 \section{Model}
 
 We are interested in estimating the abundance over time, $a(t)$, of a virus circulating in the population.
-Our observations consist of $n$ metagenomic samples from the environment (e.g., wastewater) taken at a discrete set of times $\left\{t_0, \ldots, t_{n-1}\right\}$.
+Our observations consist of $n$ metagenomic samples from the environment (e.g., wastewater) taken at a discrete set of times $\left\{t_1, \ldots, t_n\right\}$.
 We process the metagenomic samples to identify all k-mers of a given length and count their occurrence in each sample.
-Here we focus on the counts, $X = \left\{X_0, \ldots, X_{n-1}\right\}$, of a single k-mer derived from our virus of interest.
+Here we focus on the counts, $X = \left\{X_1, \ldots, X_n\right\}$, of a single k-mer derived from our virus of interest.
 At each sampling time $t_i$, we have a known sampling effort $\lambda_i$.
 The $\left\{\lambda_i\right\}$ represent a conversion factor from the abundance of the virus to the count of the focal k-mer so that $\mathbb{E}\left[X_i\right] = \lambda_i a(t_i)$,
 accounting for the combined effects of sequencing depth, extraction and sequencing efficiency, and our bioinformatics pipeline.
@@ -200,6 +202,7 @@ Assuming that we observe at least one count so that $T_0(x) > 0$, we can divide 
 \begin{align}
     \frac{\sum_i \lambda_i (t_i - \bar{t}) e^{\hat{\beta}_1 (t_i - \bar{t})}}{\sum_i \lambda_i e^{\hat{\beta}_1 (t_i - \bar{t})}}
     &= \frac{T_1(x)}{T_0(x)}.
+    \label{eq:ml_ratio}
 \end{align}
 That is, we can compute the maximum likelihood estimator of the growth rate from the time-weighted sum of counts $T_1$, normalized by the total count $T_0$.
 
@@ -224,35 +227,254 @@ So far we have only calculated the Fisher information under the null hypothesis 
 This is a useful baseline, but if we want a better measure of our uncertainty in our estimates, we also need the Fisher information under the alternative hypothesis.
 In our chosen orthogonal basis, Eq.~\ref{eq:fisher_info} becomes
 \begin{align}
-    \mathcal{I}_{0,0} &= \sum_i \lambda_i e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} \label{eq:i00} \\
-    \mathcal{I}_{0,1} = \mathcal{I}_{1,0} &= \sum_i \lambda_i (t_i - \bar{t}) e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} \label{eq:i01} \\
+    \mathcal{I}_{0,0} &= \sum_i \lambda_i e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})}
+                      &= T_0(x) \label{eq:i00} \\
+    \mathcal{I}_{0,1} = \mathcal{I}_{1,0} &= \sum_i \lambda_i (t_i - \bar{t}) e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})}
+                                          &= T_1(x) \label{eq:i01} \\
     \mathcal{I}_{1,1} &= \sum_i \lambda_i {(t_i - \bar{t})}^2 e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})} \label{eq:i11}
 \end{align}
-Note that the right-hand side of Eqs.~\ref{eq:i00} and Eq.~\ref{eq:i01} are $T_0(x)$ and $T_1(x)$ respectively under the maximum likelihood equations (\ref{eq:ml0}--\ref{eq:ml1}). (This is because $\frac{\partial}{\partial \beta_0}A = A$.)
+The second equalities in Eqs.~\ref{eq:i00} and~\ref{eq:i01} are due to the maximum likelihood equations (\ref{eq:ml0}--\ref{eq:ml1}).
+(They derive from the fact that $\frac{\partial A}{\partial \beta_0} = A$.)
 
 Eq.~\ref{eq:i11} does not have a simple relationship to the sufficient statistics for general $\lambda$.
 However, we can gain some insight by considering the ratio $\mathcal{I}_{1,1} / T_0(x)$ in the limits of small and large $\hat{\beta}_0$.
+First, note that this ratio is independent of $\hat{\beta}_0$.
+\begin{align}
+    \frac{\mathcal{I}_{1,1}}{T_0(x)} &= \frac
+        {\sum_i \lambda_i {(t_i - \bar{t})}^2 e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})}}
+        {\sum_i \lambda_i e^{\hat{\beta}_0 + \hat{\beta}_1 (t_i - \bar{t})}} \\
+                                     &= \frac
+        {\sum_i \lambda_i {(t_i - \bar{t})}^2 e^{\hat{\beta}_1 (t_i - \bar{t})}}
+        {\sum_i \lambda_i e^{\hat{\beta}_1 (t_i - \bar{t})}}
+\end{align}
 
-\subsubsection{Uniform-sampling approximation}
+in the limit $\hat{\beta}_1 \to 0$, we can expand in a power series:
+\begin{align}
+    \frac{\mathcal{I}_{1,1}}{t_0(x)} &= \frac
+        {\sum_i \lambda_i {(t_i - \bar{t})}^2 \left(1 + \hat{\beta}_1 (t_i - \bar{t}) + \frac{1}{2}\hat{\beta}_1^2 {(t_i - \bar{t})}^2 + O({\hat{\beta}_1}^3)\right)}
+        {\sum_i \lambda_i \left(1 + \hat{\beta}_1 (t_i - \bar{t}) + \frac{1}{2}\hat{\beta}_1^2{(t_i - \bar{t})}^2 + O({\hat{\beta}_1}^3)\right)} \\
+                                     &= \sigma_t^2 + \mu_t^{(3)} \hat{\beta}_1 + (\mu_t^{(4)} - \sigma_t^4) \hat{\beta}_1^2 + O(\hat{\beta}_1^3),
+\end{align}
+where $\mu_t^{(k)}$ is the $k$-th central moment of the $\lambda$-weighted sampling times.
 
-There's not much we can do with Eq.~\ref{eq:i11} for arbitrary $\lambda$ and sampling times, so to make progress we'll assume evenly spaced samples with equal intensity on the interval $[0, T]$: $t_i = T i / (n - 1)$, and $\lambda_i = \lambtot / n$.
+In the limit $\hat{\beta}_1 \to \infty$, the final sampling time dominates the sum and we have:
+\begin{align}
+    \frac{\mathcal{I}_{1,1}}{T_0(x)} &= \frac
+        {\lambda_n {(t_n - \bar{t})}^2 e^{\hat{\beta}_1 (t_n - \bar{t})} + o(e^{\hat{\beta}_1 (t_n - \bar{t})})}
+        {\lambda_n e^{\hat{\beta}_1 (t_n - \bar{t})} + o(e^{\hat{\beta}_1 (t_n - \bar{t})})} \\
+                                     &\to {(t_n - \bar{t})}^2.
+\end{align}
+That is, the ratio is bounded for large $\hat{\beta}_1$.
+
+Putting these results together gives us that the Fisher information under the alternative hypothesis has the form
+\begin{align}
+    \mathcal{I}(\hat{\beta}) &=
+    \begin{pmatrix}
+        T_0(x) & T_1(x) \\
+        T_1(x) & f(\hat{\beta}_1) T_0(x)
+    \end{pmatrix}, \\
+\end{align}
+where
+\begin{align}
+    f(\hat{\beta}_1) &= \sigma_t^2 + \mu_t^{(3)} \hat{\beta}_1 + (\mu_t^{(4)} - \sigma_t^4) \hat{\beta}_1^2 + O(\hat{\beta}_1^3), & \hat{\beta}_1 \to 0, \\
+                     & \to {(t_n - \bar{t})}^2, & \hat{\beta_1} \to \infty.
+\end{align}
+For $T_1(x) = 0$, $\hat{\beta}_1 = 0$ and we recover the null result.
+For $T_1(x) > 0$, $\hat{\beta}_1 > 0$, we get that the asymptotic variance of $\hat{\beta}_1$ increases with $\hat{\beta}_1$, but plateaus.
+
+\subsection{A problematic edge case: the first observation}
+
+In this section, we examine an edge case that causes difficulty for maximum likelihood estimation.
+Consider observing a sequence of zero counts followed by a single non-zero observation, i.e., $x = (0, \ldots, 0, x_n)$.
+In the context of continuous monitoring, this is the data we'd expect the first time we observed a k-mer.
+
+In this case, the sufficient statistics are
+\begin{align}
+    T_0(x) &= x_n \\
+    T_1(x) &= (t_n - \bar{t}) x_n
+\end{align}
+Substituting into Eq.~\ref{eq:ml_ratio} gives
+\begin{align}
+    \frac
+        {\sum_i \lambda_i (t_i - \bar{t}) e^{\hat{\beta}_1(t_i - \bar{t})}}
+        {\sum_i \lambda_i e^{\hat{\beta}_1(t_i - \bar{t})}}
+    & = \frac{(t_n - \bar{t}) x_n}{x_n} \\
+    & = t_n - \bar{t},
+\end{align}
+which is solved by letting $\hat{\beta}_1 \to \infty$.
+In order to match the finite $T_0$, $\hat{\beta}_0$ must go to $-\infty$ like
+\begin{align}
+    \hat{\beta}_1 \sim \log(x_n / \lambda_n) - (t_n - \bar{t})\hat{\beta}_1.
+    \label{eq:ec_scaling}
+\end{align}
+As in the logistic regression when there is perfect separation between cases, the model tries to fit this data with an infinitely steep curve that passes through all the points exactly.
+
+The Fisher information matrix is
+\begin{align}
+    \mathcal{I}(\hat{\beta}) &= x_n
+    \begin{pmatrix}
+        1 & (t_n - \bar{t}) \\
+        (t_n - \bar{t}) & {(t_n - \bar{t})}^2
+    \end{pmatrix}.
+\end{align}
+Note that all terms are finite.
+
+Thus we have a case in which the maximum likelihood estimator takes on an extreme result based on relatively little information.
+Worse, the Fisher information is a poor guide to our uncertainty about the parameter estimates.
+Intuitively, there are a wide range of parameter values that are consistent with this data, but the Fisher information suggests that we should be confident that the parameters are infinite.
+Regression software that outputs approximate p-values based on the Fisher information will be infinitely overconfident that the null hypothesis can be rejected.
+In the next section, we'll explore hypothesis testing in more detail.
+
+\subsection{Null hypothesis testing}
+
+One way of framing exponential growth detection is as a test of the null hypothesis that $\hat{\beta}_1 = 0$.
+In frequentist statistics a null hypothesis test is defined by a choice of \emph{test statistic}, a function of the data that is designed to quantify the degree to which the data would be surprising if the null hypothesis were true.
+To apply the test, the user computes the test statistic from the observed data and uses it to calculate (or more typically approximate) a \emph{p-value}, the probability of observing a more extreme value of the test statistic under the null hypothesis.
+If the p-value falls below a pre-specified threshold, the null hypothesis is rejected.
+For a given problem, there are many possible choices of test statistic, which vary in their ease of calculation and ability to discriminate between models.
+In this section, we'll examine the properties of three different test statistics.
+
+A particular challenge for null hypothesis testing in the context of exponential growth detection is the multiple hypothesis testing burden.
+A metagenomic sequence dataset will have a very large number of k-mers.
+If we were to set a p-value threshold at a typical value of 0.05, we would expect to reject the null hypothesis for one out of every twenty k-mers, even if none were growing at all.
+This scale of false positives would likely swamp our post-processing pipeline.
+To reduce the number of false positives, we could set a higher p-value threshold for our test.
+However, the asymptotic approximations to the null distribution of the test statistic break down in the extreme tails of the distribution, even in very large samples.
+Worse, any model misspecification issues are likely to be worse in the tails as well.
+Therefore, it probably makes more sense to avoid p-values and either to construct a decision procedure based directly on the test statistic, to use Bayesian regularization (see below), and/or to design a loss function based on particular concrete objectives.
+(Note: any procedure we develop should take into account that the data is arriving as a stream rather than just one time.)
+
+\subsubsection{Z-test}
+
+The most obvious choice of test statistic in a regression context is the regression coefficient $\beta$ itself.
+In particular, we could ask the probability that the maximum likelihood estimator $\hat{\beta}_1$ would be greater than inferred from the data if the true $\hat{\beta}_1 = 0$.
+This is the intuition behind the Z-test, which uses the test statistic
+\begin{equation}
+    Z = \frac{\hat{\beta}_1}{\sqrt{\mathcal{I}_{1,1}(\hat{\beta})}}.
+\end{equation}
+Likehihood theory shows that in the limit of large datasets $Z$ is asymptotically normal.
+When the \texttt{statsmodels} Python package reports Z-scores and p-values, this what is it is using.
+(Note: we have shown that the Fisher information depends on the parameters, so that the variance of $\hat{\beta}_1$ is different under the null and alternative hypotheses.
+The software uses the Fisher information evaluated at $\hat{\beta}$, which overestimates the variability in $\hat{\beta}_1$ under the null.
+It would be better to normalize by $\mathcal{I}_{1,1}(\hat{\beta}_\text{null})$.)
+
+There are a few difficulties with working with the Z-test.
+First, $\hat{\beta}_1$ is a complicated, non-linear transformation of the data, making it relatively slow to calculate and impossible to get exact null distributions for $Z$.
+Second, we have seen that in the edge case examined above, $\hat{\beta}_1 \to \infty$, while the Fisher information is finite.
+The Z-test will thus report infinitely small p-values, even if there is only a single count of the k-mer in the dataset.
+This suggests that $Z$ does a poor job of summarizing the strength of evidence against the null hypothesis when the data is marginal.
+
+\subsubsection{Likelihood ratio test}
+
+The likelihood ratio test compares the likelihood of the ML parameters given the data under the null and alternative hypotheses.
+It uses the test statistic
+\begin{equation}
+    \Lambda = 2\left(l_{\text{alt}}(\hat{\beta}_\text{alt}) - l_\text{null}(\hat{\beta}_\text{null})\right).
+\end{equation}
+In our model
+\begin{align}
+    \Lambda &= 2\left((\hat{\beta}_\text{alt} - \hat{\beta}_\text{null})\cdot T(x) - A_\text{alt}(\hat{\beta}_\text{alt}) + A_\text{null}(\hat{\beta}_\text{null})\right) \\
+            &= 2(\hat{\beta}_\text{alt} - \hat{\beta}_\text{null}) \cdot T(x),
+\end{align}
+where the second equality comes from the fact that $A(\hat{\beta}) = \frac{\partial A}{\partial \beta_0}(\hat{\beta}) = T_0(x)$ under both models.
+Like $Z$, $\Lambda$ is asymptotically standard normal under the null model.
+
+Because it depends on $\hat{\beta}$, the likelihood ratio test shares the downsides of complexity with the Z-test.
+On the other hand, it handles the first-observation problem more gracefully.
+To see this, apply Eq.~\ref{eq:ec_scaling}, to get
+\begin{align}
+    \Lambda & \to 2 \left( \log(x_n / \lambda_n) x_n - \log(x_n / \lambtot) x_n \right) \\
+            & = 2 \log(\lambtot / \lambda_n) x_n \\
+            & \approx 2 \log(n) x_n,
+\end{align}
+which is finite.
+
+\subsubsection{Score test}
+
+The score test is an approximation to the likelihood ratio test that is simpler to calculate.
+Its test statistic is based on the gradient of the log-likelihood (sometimes known as the `score'):
+\begin{align}
+    S^2 & = {(\nabla l)}^T \mathcal{I}^{-1} \nabla l,
+\end{align}
+where all components are evaluated at the parameters of the null hypothesis.
+Substituting our previous results, gives
+\begin{align}
+    S^2(x) & = \frac{{(T_0(x) - \lambtot e^{\hat{\beta}_0})}^2 + T_1^2(x) / \sigma_t^2}{\lambtot e^{\hat{\beta}_0}}. \\
+           & = \frac{T_1^2(x)}{T_0(x) \sigma_t^2}
+\end{align}
+Under the null hypothesis $S^2$ is asymptotically $\chi$-squared distributed with one degree of freedom so that $S$ is standard Gaussian.
+
+The score test has the advantage that its test statistic can be computed directly from the count data without fitting the model.
+This makes it promising as an initial screening step to rule out k-mers that have very little evidence of exponential growth.
+It also makes it faster to simulate the distribution of the statistic under different hypotheses.
+
+In the first-observation case, we have a finite test statistic:
+\begin{align}
+    S^2 = \frac{{(t_n - \bar{t})}^2}{\sigma_t^2} x_n.
+\end{align}
+Note that unlike the likelihood ratio statistic, this does not depend directly on the number of sampled points.
+In a sense, the score test forgets this information by looking only at the aggregate sufficient statistics.
+In doing so, it is more conservative about this case than the likelihood ratio test.
+($S$ also scales with $\sqrt{x_n}$, unlike $\Lambda$, which is proportional to $x_n$, so the score test is more conservative about larger counts at the first observation.)
+
+\subsubsection{Possible follow-up work on hypothesis tests}
+
+It may be worthwhile to follow up on the above section with a more thorough (and largely numerical) analysis of the merits of the different tests and their test statistics.
+Possible issues to investigate:
+\begin{enumerate}
+    \item Calibration of asymptotic p-values: how do the true distributions of the test statistics compare to their asymptotic Gaussian distributions? Do any converge to Gaussian faster than the others?
+    \item Power: How good is the test at detecting growth as a function of growth rate and false-positive rate (e.g., precision-recall curves)?
+    \item Robustness: How sensitive is the test to model mis-specification (e.g., over-dispersion of counts, periodic fluctuations)?
+    \item Extensibility: How easy is it to extend the test to deal with complications like the serial acquisition of data?
+\end{enumerate}
+
+\subsection{Uniform-sampling approximation}
+
+Up until this point, we have worked with arbitrary $\lambda$ and sampling times.
+It can be useful for intuition to consider the case of evenly spaced samples with equal intensity $\lambtot / n$ on the interval $[-\Delta t / 2, \Delta t / 2]$.
 We'll further assume that we have dense sampling so that $n \ll 1$.
 To simplify the expressions we'll neglect terms of order $n^{-1}$ and higher.
 [Note: we can compute more terms in the asympotic series in $n^{-1}$, to capture the dependence on $n$, but I don't think it's worth it.]
 With these assumptions, we can make the substitutions:
 \begin{align}
-    \sum_{i=0}^{n-1} \lambda_i & \to \int_0^T dt \frac{\lambtot}{T} \\
-    t_i & \to t \\
-    \bar{t} & \to T / 2 \\.
+    \frac{2 t_i}{\Delta t} & \to t \\
+    \bar{t} & \to 0 \\
+    \frac{\beta_1 \Delta t}{2} & \to \beta_1 \\
+    \sum_{i=1}^{n} \lambda_i & \to \int_{-1}^{1} dt \frac{\lambtot}{2}
+\end{align}
+Note that we're now measuring time in terms of the total interval of our sampling, so that $\beta_1$ is a dimensionless quantity.
+These substitutions send the log-partition function to
+\begin{align}
+    A(\beta) & \to \int_{-1}^{1} dt \frac{\lambtot}{2} e^{\beta_0 + \beta_1 t} \\
+             & = \lambtot e^{\beta_0} \frac{\sinh(\beta_1)}{\beta_1}.
+\end{align}
+We now have the gradient:
+\begin{align}
+    \frac{\partial A}{\partial \beta_0} & = A \\
+    \frac{\partial A}{\partial \beta_1} & = \lambtot e^{\beta_0} \frac{\beta_1 \cosh \beta_1 - \sinh \beta_1}{\beta_1^2}.
+\end{align}
+This yields the normalized max likelihood function for $\hat{\beta}_1$
+\begin{align}
+    \frac{T_1(x)}{T_0(x)} = \coth \hat{\beta}_1 - \frac{1}{\hat{\beta}_1}
+    \begin{cases}
+        = \frac{\hat{\beta}_1}{3} - \frac{\hat{\beta}_1^3}{45} + O(\hat{\beta}_1^5) \\
+        \sim 1 - \frac{1}{\hat{\beta}_1}, \hat{\beta}_1 \to \infty.
+    \end{cases}
 \end{align}
 
-\subsection{A problematic edge case: the first observation}
+Finally, we have the Fisher information:
+\begin{align}
+    \mathcal{I}(\beta) = \lambtot e^{\beta_0}
+    \begin{pmatrix}
+        \frac{\sinh \beta_1}{\beta_1} & \frac{\beta_1 \cosh \beta_1 - \sinh \beta_1}{\beta_1^2} \\
+        \frac{\beta_1 \cosh \beta_1 - \sinh \beta_1}{\beta_1^2} &
+        \frac{(\beta_1^2 + 2) \sinh \beta_1 - 2 \beta_1 \cosh \beta_1}{\beta_1^3}. \\
+    \end{pmatrix}
+\end{align}
 
-\subsection{Null hypothesis testing}
+Some algebra will show that these results agree with the general $\lambda$ results above.
 
-% Problems with multiple hypothesis testing
-
-\section{Baysian inference}
+\section{Bayesian inference}
 
 \subsection{The conjugate prior and update rule}
 
@@ -263,6 +485,8 @@ With these assumptions, we can make the substitutions:
 \subsection{Regularization of the first-observation problem}
 
 \subsection{Multiple hypothesis testing}
+
+\end{document}
 
 Let $a(t)$ be the abundance of an exponentially-growing pathogen over time:
 \begin{align}
@@ -350,5 +574,3 @@ as $n \to \infty$.
 Note that the variance converges to a constant as the number of samples increases (holding the total exposure constant).
 This is intuitive because we expect diminishing returns to ever-finer temporal resolution.
 Also note that the error of the first order approximation in $n^{-1}$ is already only 2\% once you have 10 sampled times, so for the full case, we won't bother with higher-order approximations.
-
-\end{document}
