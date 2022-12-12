@@ -14,15 +14,21 @@
 \maketitle
 
 \begin{abstract}
-    Objectives:
+    This document is an overview of theoretical results for using Poisson regression to detect exponential growth of a virus from a timeseries of k-mer counts in environmental metagenomic samples.
+    It focuses only on the problem of estimating growth rate from the k-mer counts, not on any of the experimental or bioinformatic tasks in getting counts from samples.
+    My objectives are:
     \begin{enumerate}
-        \item Sufficient generality so that we can see general properties and extensions
-        \item Sufficient concreteness that we can calculate things
-        \item Build intuition for scaling
-        \item Compare approaches
-        \item Simple model as baseline for complications
+        \item To define the model and develop a consistent notation that we can use in future investigations.
+        \item To connect the Poisson regression model to the theory of exponential families, and in so doing to allow us to identify general properties and possible extensions.
+        \item On the other hand, to be sufficiently concrete that we can connect the results to real-world parameters like the total sequencing effort.
+        \item To build intuition for how aspects of the problem scale with these parameters.
+        \item To compare different approaches and lay the groundwork for quantitative performance assessment.
+        \item To develop our understanding of a simple model as a baseline for adding complications.
     \end{enumerate}
 \end{abstract}
+I begin with a description of a Poisson timeseries model.
+Then, I develop maximum likelihood, null-hypothesis testing, and Bayesian approaches to fitting the model to data.
+Finally, I propose future work to define performance metrics and apply them to these approaches.
 
 \tableofcontents
 
@@ -91,7 +97,7 @@ In the following sections, we will derive statistical procedures for inferring t
 We will see how to select basis functions and how the results depend on the sampling times and sequencing effort.
 Finally, we will analyze an edge case that maximum likelihood does not handle well and show how Bayesian inference regularizes our estimates.
 
-\section{Maximum likelihood inference}
+\section{Frequentist methods}
 
 \subsection{Maximum likelihood parameter estimates}
 
@@ -401,6 +407,7 @@ Substituting our previous results, gives
 \begin{align}
     S^2(x) & = \frac{{(T_0(x) - \lambtot e^{\hat{\beta}_0})}^2 + T_1^2(x) / \sigma_t^2}{\lambtot e^{\hat{\beta}_0}}. \\
            & = \frac{T_1^2(x)}{T_0(x) \sigma_t^2}
+           \label{eq:score}
 \end{align}
 Under the null hypothesis $S^2$ is asymptotically $\chi$-squared distributed with one degree of freedom so that $S$ is standard Gaussian.
 
@@ -428,11 +435,13 @@ Possible issues to investigate:
     \item Extensibility: How easy is it to extend the test to deal with complications like the serial acquisition of data?
 \end{enumerate}
 
+\subsection{Elastic net regularization [TODO]}
+
 \subsection{Uniform-sampling approximation}
 
 Up until this point, we have worked with arbitrary $\lambda$ and sampling times.
 It can be useful for intuition to consider the case of evenly spaced samples with equal intensity $\lambtot / n$ on the interval $[-\Delta t / 2, \Delta t / 2]$.
-We'll further assume that we have dense sampling so that $n \ll 1$.
+We'll further assume that we have dense sampling so that $n \gg 1$.
 To simplify the expressions we'll neglect terms of order $n^{-1}$ and higher.
 [Note: we can compute more terms in the asympotic series in $n^{-1}$, to capture the dependence on $n$, but I don't think it's worth it.]
 With these assumptions, we can make the substitutions:
@@ -478,99 +487,209 @@ Some algebra will show that these results agree with the general $\lambda$ resul
 
 \subsection{The conjugate prior and update rule}
 
-\subsection{Selection and interpretation of hyperparameters}
+In Bayesian inference, the \emph{conjugate prior} for a given likelihood is the family of distributions that is closed under Bayesian updating.
+That is, if the prior is a member of the conjugate family, the posterior is also a member.
 
-\subsection{Point estimates and uncertainty}
-
-\subsection{Regularization of the first-observation problem}
-
-\subsection{Multiple hypothesis testing}
-
-\end{document}
-
-Let $a(t)$ be the abundance of an exponentially-growing pathogen over time:
+For a likelihood in an exponential family with natural parameters $\eta$, sufficient statistics $T$ and log-partition function $A(\eta)$, the conjugate prior is given by
 \begin{align}
-    a(t) = \exp(\beta_0 + \beta_1 t)
+    \log p_\pi(\eta; \chi, \nu) = \eta \cdot \chi - \nu A(\eta) - \log Z(\chi, \nu),
+    \label{eq:prior}
 \end{align}
-for $t \in \left[ 0, T\right]$.
-Suppose we take $n$ measurements at times $\left\{t_i\right\}$ with exposures $\left\{\lambda_i\right\}$ for $i = 1, \ldots, n-1$.
-The exposures represent a conversion factor between the abundance and the expected number of counts and lump together the sampling intensity and properties of the sequencing protocol such as taxonomic bias.
-We model the vector of observed counts $\vec{k}$ as independent Poisson random variables:
+where $\chi$ and $\nu$ are hyperparameters, and $Z$ is the partition function of the prior.
+When we make a single observation $x$, we update according to Bayes rule to get the posterior:
 \begin{align}
-    k_i \sim \text{Poisson}(\lambda_i a(t_i)).
+    \log p_\text{post}(\eta; \chi, \nu, x) &= l(x; \eta) + \log p_\pi(\eta; \chi, \nu) \\
+                                           &= \eta \cdot (\chi + T(x)) - (\nu + 1) A(\eta) - \log Z
+                                           \label{eq:post}
 \end{align}
-We use Poisson regression to estimate the parameters $(\beta_0, \beta_1)$.
-This is equivalent to maximizing the log-likelihood:
+where $Z$ is the new partition function and does not depend on $\eta$.
+Comparing Eq.~\ref{eq:prior} and Eq.~\ref{eq:post}, we see that the posterior indeed belongs to the same family as the prior and that the hyper parameters are updated according to the update rule
 \begin{align}
-    l(\beta_0, \beta_1; \vec{k}, \vec{\lambda})
-    & = \log \prod_{i=0}^{n-1} \frac{{(\lambda_i a(t_i))}^{k_i}}{k!} \exp(\lambda_i a(t_i))\\
-    & = \sum_{i=0}^{n-1} \left[k_i(\beta_0 + \beta_1 t_i) - \lambda_i e^{\beta_0 + \beta_1 t_i} \right] + \text{const.}
+    \chi' & = \chi + T(x) \\
+    \nu' & = \nu + 1.
 \end{align}
+If we had multiple observations, we could iterate this process to get the final posterior including all the data.
 
-In the limit where we have a lot of data (query what exactly this means in this context), the covariance matrix of the maximum likelihood parameter estimates $(\hat{\beta_0}, \hat{\beta_1})$ converges to the inverse of the Fisher information matrix,
-\begin{equation}
-    \mathcal{I}_{i, j} = - \mathbb{E} \left[ \frac{\partial^2 l}{\partial \beta_i \partial \beta_j} \middle| \beta_0, \beta_1 \right].
-\end{equation}
-Differentiating the log likelihood twice gives us:
+Above, we showed that our Poisson regression model is an exponential family with natural parameters $\beta$.
+Thus, our conjugate prior is
 \begin{align}
-    \frac{\partial^2 l}{\partial \beta_0^2}
-    &= - \sum_{i=0}^{n-1} \lambda_i e^{\beta_0 + \beta_1 t} \\
-    \frac{\partial^2 l}{\partial \beta_0 \partial \beta_1}
-    &= - \sum_{i=0}^{n-1} \lambda_i t_i e^{\beta_0 + \beta_1 t} \\
-    \frac{\partial^2 l}{\partial \beta_1^2}
-    &= - \sum_{i=0}^{n-1} \lambda_i t_i^2 e^{\beta_0 + \beta_1 t}.
-\end{align}
-If we take evenly spaced samples with equal exposure so that $t_i = T(i/n-1)$ and $\lambda_i = \lambda / n$, with total exposure $\lambda$, we have
-\begin{equation}
-    \mathcal{I} = \lambda e^{\beta_0}
-    \begin{pmatrix}
-        S_0 & T S_1 \\
-        T S_1 & T^2 S_2
-    \end{pmatrix}
-\end{equation}
-where
-\begin{align}
-    S_j = n^{-1} \sum_{i=0}^{n-1} {\left(\frac{i}{n-1}\right)}^j \exp\left(\beta_1 T \frac{i}{n-1}\right)
+    \log p_\pi(\beta; \chi, \nu) & = \beta_0 \chi_0 + \beta_1 \chi_1 - \nu \lambtot e^{\beta_0} f(\beta_1) - \log Z, \\
+    f(\beta_1) & = \sum_i \frac{\lambda_i}{\lambtot} e^{\beta_1 (t_i - \bar{t})}.
 \end{align}
 
-Because $\mathcal{I}$ is a $2 \times 2$ matrix, we can invert it to get the asymptotic covariance matrix:
-\begin{equation}
-    {\mathcal{I}}^{-1} = \lambda^{-1} e^{-\beta_0} T^{-2} \frac{1}{S_0 S_2 - S_1^2}
-    \begin{pmatrix}
-        T^2 S_2 & -T S_1 \\
-        -T S_1 & S_0
-    \end{pmatrix}
-\end{equation}
-For exponential growth detection, we're most interested in
-\begin{equation}
-    \textrm{Var}(\hat{\beta_1}) = \lambda^{-1} e^{-\beta_0} T^{-2} \frac{S_0}{S_0 S_2 - S_1^2}.
-    \label{eq:var}
-\end{equation}
+By examining the update rules, we can interpret our hyperparameters in terms of pseudocounts.
+That is, $\nu$ can be thought of as an effective number of observations (of the entire timeseries) that contributed to the prior, $\chi_0$ as the total number of counts we saw in those observations, and $\chi_1$ as the total time-weighted counts.
+Larger values of the hyperparameters will tend to have a stronger influence on the posterior, requiring more data to overcome them.
+Unless we have a reason to believe that most k-mers tend to increase or decrease on net, symmetry suggests we should choose $\chi_1 = 0$.
 
-We can already learn some important things from Eq.~\ref{eq:var}:
+The rest of this section will be devoted to examining the properties of this conjugate distribution in order to inform our choice of hyperparameters and interpretation of the posterior.
+First, we will look at the conditional distribution of $\beta_0$, then we will use this result to find the marginal distribution of $\beta_1$, which is obviously more important for exponential growth detection.
+
+\subsection{Conditional distribution of $\beta_0$}
+
+To find the conditional distribution of $\beta_0$ (that is, the distribution conditioned on a particular value of $\beta_1$), we make the substitution $y = e^{\beta_1}$.
+Applying the change of variables formula, we find:
+\begin{align}
+    p(y; \chi, \nu, \beta_1) & = p_\pi(\log y, \beta_1; \chi, \nu) \frac{d}{dy} \log y \\
+                             &= \frac{1}{Z} y^{\chi_0 - 1} e^{-\nu \lambtot f(\beta_1) y} e^{\beta_1 \chi_1}.
+                             \label{eq:conditional}
+\end{align}
+We can recognize this as a Gamma distribution with shape parameter $\chi_0$ and scale parameter $\nu \lambtot f(\beta_1)$.
+This is unsurprising because the Gamma is the conjugate prior of the Poisson likelihood and $\lambtot f(\beta_1) e^{\beta_0}$ is the rate parameter for the total count, which is Poisson-distributed under our model.
+(The sum of independent Poissons is itself Poisson.)
+
+We now have some more information about the interpretation of our hyperparameters.
+The shape parameter $\chi_0$ controls the behavior of the Gamma distribution around zero:
+\begin{itemize}
+    \item For $0 < \chi_0 < 1$, $p(y)$ has a power-law singularity at zero. It says that we expect to see y at all scales as we approach zero.
+    \item For $\chi_0 = 1$, $p(y)$ is an exponential distribution.
+    \item For $\chi_1 > 1$, $p(0) = 0$ and there is an internal mode. That is, the likely values of $y$ are clustered around a finite value.
+\end{itemize}
+Conditional on zero growth, $\beta_1 = 0$, we have $f(0) = 1$, so
+\begin{align}
+    p(y; \chi, \nu, 0) & = \frac{1}{Z} y^{\chi_0 - 1} e^{\nu \lambtot y}
+\end{align}
+So the expected total count for steady-state counts is $\chi_0 / \nu$.
+Together, these facts could be used in an empirical Bayes setting to choose hyperparameters,
+although we will see below some other considerations that may be more important.
+
+\subsection{Marginal distribution of $\beta_1$}
+
+The fact that $y = e^{\beta_0}$ is conditionally Gamma-distributed is convenient, because it allows us to integrate out $\beta_0$ to find the marginal distribution of $\beta_1$.
+This is useful because our ultimate decision rule may depend only on $\beta_1$, so that $\beta_0$ is a nuisance parameter.
+
+Integrating Eq.~\ref{eq:conditional} over $y$ and using the definition of the Gamma function, we get the marginal distribution:
+\begin{align}
+    p_\pi(\beta_1; \chi, \nu) &= \frac{1}{Z(\chi, \nu)} \int_0^\infty dy y^{\chi_0 - 1} e^{-\nu \lambtot f(\beta_1) y} e^{\beta_1 \chi_1} \\
+                              &= \frac{1}{Z(\chi)} \exp \left( - \chi_0 \log f(\beta_1) + \chi_1 \beta_1 \right).
+                              \label{eq:marginal}
+\end{align}
+Interestingly, the marginal distribution of $\beta_1$ is independent of the hyperparameter $\nu$.
+
+Because of the complicated function $f$, this is not a named distribution.
+(Although in the uniform sampling limit---see above---it is tantalizingly similar to a skewed generalized hyperbolic secant distribution.)
+Fortunately, we can say quite a bit about it, including characterizing its mode, its tail behavior, and its convergence to a Gaussian distribution.
+
+\subsubsection{Bayesian regularization: the posterior mode}
+
+A common Bayesian point estimate is the posterior mode of a parameter.
+To find the mode, set the derivative of the log posterior to zero and solve for $\beta_1$:
+\begin{align}
+    \frac{d}{d \beta_1} \log p & = - \chi_0 \frac{f'(\beta_1^*)}{f(\beta_1^*)} + \chi_1 = 0 \\
+    \frac{\chi_1}{\chi_0} & =
+        \frac{f'(\beta_1^*)}{f(\beta_1^*)} \\
+                          & =
+    \frac
+        {\sum_i \frac{\lambda_i}{\lambtot} (t_i - \bar{t}) e^{\beta_1^* (t_i - \bar{t})}}
+        {\sum_i \frac{\lambda_i}{\lambtot} e^{\beta_1^* (t_i - \bar{t})}}.
+\end{align}
+We recognize this as the maximum likelihood estimator (Eq.~\ref{eq:ml_ratio}) with $\chi$ playing the role of $T(x)$.
+
+Using our update rule, we find that the posterior mode is determined by
+\begin{align}
+    \frac{\chi_1'}{\chi_0'} & = \frac{\chi_1 + T_1(x)}{\chi_0 + T_0(x)}.
+\end{align}
+This is our first illustration of Bayesian inference as regularization.
+When the evidence is weak compared to the prior, the prior dominates and sets posterior mode.
+In contrast, when the evidence is much stronger than the prior, the effect of the prior is minimal.
+In intermediate cases, the mode is pulled toward the prior, but not all the way.
+
+For example, consider the first-observation problem described above.
+In the maximum-likelihood framework, the ratio $\frac{T_1}{T_0}$ achieves its maximum possible value and $\hat{\beta}_1 \to \infty$, even with only one observed count.
+In Bayesian model, the prior, through $\chi_0$, pulls ratio downward.
+The effect of $\chi_0$ on the posterior mode is the same as the effect of $\chi_0$ counts at the midpoint of the timeseries on the maximum likelihood estimator.
+The larger $\chi_0$ is, the more observations at the final timepoint are necessary to get a large value of $\beta_1^*$.
+
+\subsubsection{Small $\beta_1$ approximation}
+
+When $\beta_1$ is small, we can simplify Eq.~\ref{eq:marginal} by expanding $\log f$ about zero.
+This is particularly relevant when $\chi_1$ is small so that the posterior mode is near zero.
+To second order in $\beta_1$, we have:
+\begin{align}
+    \log p_\pi(\beta_1; \chi) & = -\chi_0 \sum_i \frac{1}{2} {(t_i - \bar{t})}^2 \beta_1^2 + \chi_1 \beta_1 + \text{const.} \\
+                              & = -\frac{\chi_0 \sigma_t^2}{2} \beta_1^2 + \chi_1 \beta_1 + \text{const.} \\
+                              & = -\frac{\chi_0 \sigma_t^2}{2} {(\beta_1 - \frac{\chi_1}{\chi_0 \sigma_t^2})}^2 - \log Z.
+\end{align}
+That is, for small $\beta_1$, $p_\pi(\beta_1)$ is approximately Gaussian with mean $\frac{\chi_1}{\chi_0 \sigma_t^2}$ and variance $\frac{1}{\chi_0 \sigma_t^2}$.
+
+If we apply the update rule with the hyperparameter $\chi_1 = 0$, we, get an approximately Gaussian posterior with mean $\frac{T_1(x)}{(\chi_0 + T_0(x)) \sigma_t^2}$ and variance $\frac{1}{(\chi_0 + T_0(x)) \sigma_t^2}$.
+Comparing to Eq.~\ref{eq:score}, we can see that the posterior probability that $\beta_1 \leq 0$ under this approximation is equivalent to the p-value of the score test but with $T_0$ replaced with $\chi_0 + T_0$.
+This gives us a Bayesian interpretation of the score test.
+
+\subsubsection{Tail behavior}
+
+Now, we consider the opposite limit, $| \beta_1 | \to \infty$.
+In that case, the sum in $f$ is dominated by either the first or last term so that
+\begin{align}
+    \log p \sim
+        \begin{cases}
+            - |\beta_1| (\chi_0(\bar{t} - t_i) + \chi_1^*) & \text{as } \beta_1 \to -\infty \\
+            - \beta_1 (\chi_0(t_n - \bar{t}) - \chi_1) & \text{as } \beta_1 \to \infty.
+        \end{cases}
+        \label{eq:tails}
+\end{align}
+Thus, while our small-$\beta_1$ approximation was Gaussian, the tails of the distribution are actually exponential.
+The Gaussian approximation will underestimate the extreme tail probabilities oft he posterior.
+
+Incidentally, Eq.~\ref{eq:tails} places bounds on our hyperpriors.
+We must have $\chi_0(t_i - \bar{t}) < \chi_1 < \chi_0(t_n - \bar{t})$ in order for the tails to go to zero.
+Otherwise, we will have an improper prior.
+Examining the sufficient statistics $T$ will show that if these conditions are met for the prior, they will be met for the posterior as well.
+
+\subsubsection{Gaussian approximation for large $\chi_0$}
+
+In the previous two sections, we looked at the shape of the marginal distribution of $\beta_1$ for particular regions $\mathbb{R}$, namely near the origin and around infinity.
+In this section, we will look at the behavior of the distribution for $\chi_0 \gg 1$.
+This condition could come about either from a strong prior, a large observation of $T_0(x)$, or some combination.
+
+To explore this limit, we will show how to calculate an asymptotic series for the partition function $Z(\chi)$ as $\chi_0 \to \infty$.
+We focus on $Z$ for two reasons.
+First, the partition function is related to the moment-generating function, and we can derive all moments of $p_\pi$ from $Z$.
+Second, $Z$ is the normalizing factor for $p_\pi$.
+If we are interested in calculating extreme tail probabilities in the exponential regime (Eq.~\ref{eq:tails}), we will need to divide by $Z$, which depends on the entire distribution.
+
+Integrating Eq.~\ref{eq:marginal} over $\beta_1$ and setting the integral to 1, we have
+\begin{align}
+    Z(\chi) &= \int_{-\infty}^{\infty} e^{\chi_0(- \log f(\beta_1) + \frac{\chi_1}{\chi_0} \beta_1)} d\beta_1.
+\end{align}
+The integrand has a peak at $\beta_1^*$, as we showed above, and as $\chi_0 \to \infty$ it becomes more sharply peaked around this value.
+We can thus use Laplace's method to approximate the integral by expanding the integrand about $\beta_1^*$.
+
+Making the substitutions $u = \beta_1 - \beta_1^*$, $\phi = \log f(\beta_1) - \frac{\chi_1}{\chi_0} \beta_1$,
+\begin{align}
+    Z(\chi) & = \int_{-\infty}^{\infty}
+        e^{- \chi_0 \left(\phi(\beta_1^*) + \frac{u^2}{2}\phi''(\beta_1^*) + \sum_{k=3}^{\infty}\frac{u^k}{k!}\phi^{(k)}(\beta_1^*) \right)} du \\
+            & = e^{- \chi_0 \phi(\beta_1^*)}
+            \int_{-\infty}^{\infty} e^{- \frac{u^2}{2} \chi_0 \phi''(\beta_1^*)} \exp \left[ - \sum_{k=3}^{\infty}\frac{u^k}{k!} \chi_0 \phi^{(k)}(\beta_1^*)\right] du \\
+            & = e^{- \chi_0 \phi(\beta_1^*)} \sqrt{\frac{1}{\phi''(\beta_1^*)\chi_0}}
+            \int_{-\infty}^{\infty} e^{- \frac{u^2}{2}} \exp \left[ - \sum_{k=3}^{\infty}\frac{u^k}{k!} \chi_0^{-\frac{k}{2}+1} \frac{\phi^{(k)}(\beta_1^*)}{{\phi''(\beta_1^*)}^{k/2}} \right] du \label{eq:laplace}\\
+            & \sim e^{- \chi_0 \phi(\beta_1^*)} \sqrt{\frac{2\pi}{\phi''(\beta_1^*)\chi_0}}.
+\end{align}
+To leading order, this is the partition function of a Gaussian distribution with variance $\frac{1}{\chi_0 \phi''(\beta_1^*)}$.
+
+Higher-order corrections can be obtained by expanding the $\exp$ term in Eq.~\ref{eq:laplace} in powers of $u$ and integrating each term with respect to $e^{-\frac{u^2}{2}}$, the standard Gaussian measure.
+Each integral will be proportional to the moments of the standard Gaussian of order $k$, so only even terms will contribute to the sum.
+Thus, the lowest-order correction will be $k = 4$, followed by $k = 6$, etc., so that we obtain a power series in $\chi_0^{-1}$.
+
+We can use this information in two ways.
+First, we can use the posterior variance as a summary of our posterior uncertainty about $\beta_1^*$.
+Second, we can use our approximation of $Z$ to calculate the tail probabilities using a combination of Gaussian and exponential approximation as appropriate.
+
+\section{Future directions: assessing performance}
+
+The results in this document represent an overview of the basic theory of frequentist and Bayesian Poisson regression.
+The next steps in the development of our statistical procedure for exponential growth detection will be to assess the performance of various options in the face of the complications we'll see in real data.
+We will be faced with choices of methods, and of hyperparameters for a given method.
+To make these choices, we'll need to define the metrics by which we want to measure performance.
+Some possibilities include:
 \begin{enumerate}
-    \item The variance of $\hat{\beta_1}$ is inversely proportional to the total sampling effort, $\lambda$, and to the initial abundance, $e^{\beta_0}$.
-    \item The standard error is inversely proportional to the total time spanned by the sampling, $T$.
-    \item The variance depends on the true growth rate through the dimensionless parameter $\beta_1 T$, which represents the log-fold increase in abundance over $T$.
+    \item Computational cost: how expensive is it to perform the inference procedure on a realistic dataset? Are there cheap-but-coarse screens that we can apply to cut down the number of candidates for more expensive analysis?
+    \item Sensitivity: for a given set of conditions, resource expenditure, and hyperparameters, how likely are we to detect exponential growth before a certain threshold abundance (or other criterion) is reached?
+    \item False discovery rate: for a given set of conditions, expenditure, and hyperparameters, how many false-positives do we expect to get? There will be a tradeoff between sensitivity and FDR, which can be measured by, e.g., a precision-recall curve.
+    \item Predictive accuracy: given a fit to the data we have, how accurately does the model predict future count data? This could be used for cross-validation of hyperparameters.
+    \item Robustness: how well does the model perform (according to the above considerations) when the model is mis-specified? What sorts of mis-specifications are we most concerned about?
 \end{enumerate}
 
-Next, we want to clarify the dependence of $\textrm{Var}(\hat{\beta_1})$ on the number of sampled timepoints, $n$, and on the log fold-increase $\beta_1 T$, which are opaque in Eq.~\ref{eq:var}.
-First, we will get the exact equation for the situation with no growth ($\beta_1 = 0$).
-Then, we'll look at the general case and study the large $n$ behavior with an asymptotic series in $n^{-1}$.
+Combining these considerations will require decision theory. For example, in a Bayesian context, we could define a loss function that takes into account the costs of different types of errors, and choose hyperparameters that minimize the expected loss.
 
-When $\beta_1 = 0$, the sums become simple:
-\begin{align}
-    S_0 &= 1 \\
-    S_1 &= \frac{n-1}{2} \\
-    S_2 &= \frac{(n-1)(2n-1)}{6}
-\end{align}
-so that we have
-\begin{align}
-    \textrm{Var}(\hat{\beta_1}) &= \lambda^{-1} e^{-\beta_0} \frac{12}{T^2} \left(\frac{n-1}{n+1}\right) \\
-                                &\sim \lambda^{-1} e^{-\beta_0} \frac{12}{T^2} \left(1 - \frac{2}{n} + \frac{2}{n^2} + \cdots\right)
-\end{align}
-as $n \to \infty$.
-
-Note that the variance converges to a constant as the number of samples increases (holding the total exposure constant).
-This is intuitive because we expect diminishing returns to ever-finer temporal resolution.
-Also note that the error of the first order approximation in $n^{-1}$ is already only 2\% once you have 10 sampled times, so for the full case, we won't bother with higher-order approximations.
+\end{document}
