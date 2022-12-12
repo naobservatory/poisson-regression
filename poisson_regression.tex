@@ -439,7 +439,32 @@ Possible issues to investigate:
     \item Extensibility: How easy is it to extend the test to deal with complications like the serial acquisition of data?
 \end{enumerate}
 
-\subsection{Elastic net regularization [TODO]}
+\subsection{Elastic net regularization}
+
+In the context of regression, \emph{regularization} refers to a set of methods for reducing noise in the estimated coefficients, typically by shrinking them toward (or all the way to) zero.
+Regularization trades increased bias (the regularized coefficients will be small than the true coefficients on average) for reduced variance.
+
+Elastic net regularization works by penalizing the loss function---the log-likelihood in our context---by a penalty term:
+\begin{equation}
+    \kappa_2 {\| \beta \|}^2 + \kappa_1 \| \beta \|_1,
+\end{equation}
+where the second term in the penalty is the sum of the absolute values of the coefficients.
+The quadratic term penalizes very large coefficients, while the absolute value term tends to pull coefficients to zero.
+The parameters $\kappa_1$ and $\kappa_2$ control the strength of the regularization and are typically selected by cross-validation.
+
+In our case, we don't care about regularizing $\beta_0$, so we can apply a penalty only to $\beta_1$.
+Thus, instead of maximizing the likelihood, we will look for $\beta$ to minimize the loss function
+\begin{equation}
+    L(\beta; X, \kappa) = - l(\beta; X) + \kappa_2 \beta_1^2 + \kappa_1 |\beta_1|.
+\end{equation}
+Setting $\nabla L = 0$ and eliminating $\beta_0$ gives an implicit equation for $\beta_1$:
+\begin{equation}
+    T_0(x) \frac{\sum_i \lambda_i (t_i - \bar{t}) e^{\beta_1 (t_i - \bar{t})}}{\sum_i \lambda_i e^{\beta_1 (t_i - \bar{t})}} + 2 \kappa_2 \beta_1 + \kappa_1 \text{sign}(\beta_1) = T_1(x).
+\end{equation}
+This looks like our maximum likelihood estimator for $\hat{\beta}_1$, with the addition of the penalty terms,
+both of which decrease the estimate of $\beta_1$.
+In particular, the equation now has a finite solution for $\frac{T_1}{T_0} = t_n - \bar{t}$, so we should never estimate that $\beta_1$ is infinite.
+Investigation of the null distribution of this regularized estimator is left to future work.
 
 \subsection{Uniform-sampling approximation}
 
